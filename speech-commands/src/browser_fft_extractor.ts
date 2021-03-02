@@ -182,7 +182,7 @@ export class BrowserFftFeatureExtractor implements FeatureExtractor {
 
     this.stream = await getAudioMediaStream(audioTrackConstraints);
 
-    this.audioContext = new this.audioContextConstructor() as AudioContext;
+    this.audioContext = new this.audioContextConstructor({ sampleRate: this.sampleRateHz }) as AudioContext;
     if (this.audioContext.sampleRate !== this.sampleRateHz) {
       console.warn(
           `Mismatch in sampling rate: ` +
