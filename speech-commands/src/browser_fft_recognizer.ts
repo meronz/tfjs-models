@@ -218,8 +218,12 @@ export class BrowserFftSpeechCommandRecognizer implements
         () => `Expected overlapFactor to be >= 0 and < 1, but got ${
             overlapFactor}`);
 
+    this.spectrogramCallbackEnabled = true;
     const spectrogramCallback: SpectrogramCallback =
         async (x: tf.Tensor, timeData?: tf.Tensor) => {
+      if(!this.spectrogramCallbackEnabled)
+        return true;
+
       const normalizedX = normalize(x);
       let y: tf.Tensor;
       let embedding: tf.Tensor;
@@ -751,10 +755,6 @@ class TransferBrowserFftSpeechCommandRecognizer extends
 
       const spectrogramCallback: SpectrogramCallback =
           async (freqData: tf.Tensor, timeData?: tf.Tensor) => {
-
-        if(!this.spectrogramCallbackEnabled)
-          return true;
-
         // TODO(cais): can we consolidate the logic in the two branches?
         if (options.onSnippet == null) {
           const normalizedX = normalize(freqData);
