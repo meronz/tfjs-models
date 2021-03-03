@@ -27,6 +27,10 @@ import {FeatureExtractor, RecognizerParams} from './types';
 export type SpectrogramCallback = (freqData: tf.Tensor, timeData?: tf.Tensor) =>
     Promise<boolean>;
 
+
+export type AudioProcessingCallback = (evt: MessageEvent) =>
+Promise<void>;
+
 /**
  * Configurations for constructing BrowserFftFeatureExtractor.
  */
@@ -78,6 +82,8 @@ export interface BrowserFftFeatureExtractorConfig extends RecognizerParams {
    * Default: `false`.
    */
   includeRawAudio?: boolean;
+
+  audioProcessingCallback?: AudioProcessingCallback;
 }
 
 /**
@@ -104,6 +110,7 @@ export class BrowserFftFeatureExtractor implements FeatureExtractor {
   readonly includeRawAudio: boolean;
 
   private readonly spectrogramCallback: SpectrogramCallback;
+  private readonly audioProcessingCallback: AudioProcessingCallback;
 
   private stream: MediaStream;
   // tslint:disable-next-line:no-any
@@ -158,6 +165,7 @@ export class BrowserFftFeatureExtractor implements FeatureExtractor {
     this.columnTruncateLength = config.columnTruncateLength || this.fftSize;
     this.overlapFactor = config.overlapFactor;
     this.includeRawAudio = config.includeRawAudio;
+    this.audioProcessingCallback = config.audioProcessingCallback;
 
     tf.util.assert(
         this.overlapFactor >= 0 && this.overlapFactor < 1,
@@ -194,6 +202,15 @@ export class BrowserFftFeatureExtractor implements FeatureExtractor {
     this.analyser.fftSize = this.fftSize * 2;
     this.analyser.smoothingTimeConstant = 0.0;
     streamSource.connect(this.analyser);
+
+    let processNode = null;
+    if(this.audioProcessingCallback != null) {
+      await streamSource.context.audioWorklet.addModule('js/audio-worklet.js');
+      processNode = new AudioWorkletNode(streamSource.context, 'browser-recognizer-worklet');
+      processNode.port.onmessage = this.audioProcessingCallback;
+      this.analyser.connect(processNode);
+    }
+
     // Reset the queue.
     this.freqDataQueue = [];
     this.freqData = new Float32Array(this.fftSize);

@@ -19,7 +19,7 @@ import * as tf from '@tensorflow/tfjs-core';
 import * as tfl from '@tensorflow/tfjs-layers';
 import * as tfd from '@tensorflow/tfjs-data';
 
-import {BrowserFftFeatureExtractor, SpectrogramCallback} from './browser_fft_extractor';
+import {BrowserFftFeatureExtractor, SpectrogramCallback, AudioProcessingCallback } from './browser_fft_extractor';
 import {loadMetadataJson, normalize, normalizeFloat32Array} from './browser_fft_utils';
 import {BACKGROUND_NOISE_TAG, Dataset} from './dataset';
 import {concatenateFloat32Arrays} from './generic_utils';
@@ -75,6 +75,7 @@ export class BrowserFftSpeechCommandRecognizer implements
   protected words: string[];
 
   protected streaming = false;
+  protected spectrogramCallbackEnabled = false;
 
   protected nonBatchInputShape: [number, number, number];
   private elementsPerExample: number;
@@ -173,7 +174,8 @@ export class BrowserFftSpeechCommandRecognizer implements
    */
   async listen(
       callback: RecognizerCallback,
-      config?: StreamingRecognitionConfig): Promise<void> {
+      config?: StreamingRecognitionConfig,
+      audioProcessingCallback?: AudioProcessingCallback): Promise<void> {
     if (this.streaming) {
       throw new Error(
           'Cannot start streaming again when streaming is ongoing.');
@@ -272,7 +274,8 @@ export class BrowserFftSpeechCommandRecognizer implements
       columnTruncateLength: this.nonBatchInputShape[1],
       suppressionTimeMillis,
       spectrogramCallback,
-      overlapFactor
+      overlapFactor,
+      audioProcessingCallback: audioProcessingCallback
     });
 
     await this.audioDataExtractor.start(config.audioTrackConstraints);
@@ -428,6 +431,15 @@ export class BrowserFftSpeechCommandRecognizer implements
     }
     await this.audioDataExtractor.stop();
     this.streaming = false;
+  }
+
+  /**
+   * Enable/disable streamingCallback invocation without starting/stopping the
+   * audio stream.
+   */
+  async setRecognitionState(state: boolean): Promise<void> {
+    //await this.audioDataExtractor.stop();
+    this.spectrogramCallbackEnabled = state;
   }
 
   /**
@@ -739,6 +751,10 @@ class TransferBrowserFftSpeechCommandRecognizer extends
 
       const spectrogramCallback: SpectrogramCallback =
           async (freqData: tf.Tensor, timeData?: tf.Tensor) => {
+
+        if(!this.spectrogramCallbackEnabled)
+          return true;
+
         // TODO(cais): can we consolidate the logic in the two branches?
         if (options.onSnippet == null) {
           const normalizedX = normalize(freqData);
